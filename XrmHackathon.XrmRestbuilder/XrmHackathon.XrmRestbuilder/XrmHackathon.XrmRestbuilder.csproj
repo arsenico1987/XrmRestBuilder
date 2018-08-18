@@ -121,6 +121,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ApplicationHost.cs" />
+    <Compile Include="CrmConnection.cs" />
+    <Compile Include="CrmContext.cs" />
     <Compile Include="MyPlugin.cs" />
     <Compile Include="MyPluginControl.cs">
       <SubType>UserControl</SubType>
@@ -130,12 +133,152 @@
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Settings.cs" />
+    <Compile Include="WebServer.cs" />
+    <Compile Include="XrmPage.cs" />
+    <Compile Include="XrmPageContext.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="MyPluginControl.resx">
+      <DependentUpon>MyPluginControl.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\codemirror.css">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\jsontree.css">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\animatedoverlay.gif">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uibgflat0aaaaaa40x100.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uibgflat75ffffff40x100.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uibgglass55fbf9ee1x400.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uibgglass65ffffff1x400.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uibgglass75dadada1x400.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uibgglass75e6e6e61x400.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uibgglass95fef1ec1x400.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uibghighlightsoft75cccccc1x100.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uiicons222222256x240.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uiicons2e83ff256x240.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uiicons454545256x240.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uiicons888888256x240.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\images\uiiconscd0a0a256x240.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\smoothness\jqueryui1.10.3.custom.min.css">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\css\Xrm.RESTBuilder.css">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\images\logo.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\images\logo16.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\images\logo32.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\beautify.min.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\clipboard.min.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\codemirror.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\esprima.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\javascript.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\jquery.blockUI.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\jquery1.9.1.min.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\jqueryui1.10.3.min.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\json2.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\jsontree.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\SDK.JQuery.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\SDK.REST.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\Sdk.RetrieveMetadataChanges.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\Sdk.Soap.min.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\vkbeautify.min.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\xml.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\Xrm.RESTBuilder.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\XrmContext.js" />
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\XrmServiceToolkit.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\scripts\XrmSvcToolkit.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="webresources\lat_\CRMRESTBuilder\Xrm.RESTBuilder.htm">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>if $(ConfigurationName) == Debug (
+  IF NOT EXIST Plugins mkdir Plugins
+  move /Y XrmHackathon.*.dll Plugins
+)</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

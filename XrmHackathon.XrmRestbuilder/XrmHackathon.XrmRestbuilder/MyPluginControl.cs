@@ -11,12 +11,18 @@ using XrmToolBox.Extensibility;
 using Microsoft.Xrm.Sdk.Query;
 using Microsoft.Xrm.Sdk;
 using McTools.Xrm.Connection;
+using System.Security.Permissions;
+using System.Runtime.InteropServices;
+using System.IO;
 
 namespace XrmHackathon.XrmRestbuilder
 {
     public partial class MyPluginControl : PluginControlBase
     {
         private Settings mySettings;
+
+        public CrmConnection CrmConnection { get; private set; }
+        internal WebServer Webserver { get; private set; }
 
         public MyPluginControl()
         {
@@ -95,6 +101,7 @@ namespace XrmHackathon.XrmRestbuilder
         /// </summary>
         public override void UpdateConnection(IOrganizationService newService, ConnectionDetail detail, string actionName, object parameter)
         {
+            this.CrmConnection = new CrmConnection(newService);
             base.UpdateConnection(newService, detail, actionName, parameter);
 
             if (mySettings != null && detail != null)
@@ -102,6 +109,39 @@ namespace XrmHackathon.XrmRestbuilder
                 mySettings.LastUsedOrganizationWebappUrl = detail.WebApplicationUrl;
                 LogInfo("Connection has changed to: {0}", detail.WebApplicationUrl);
             }
+            //this._appHost = new CRMSolutionAppHost(base.get_Service(), appRoot);
+            //this.browser.ObjectForScripting = this._appHost.SparkleXrmBridge;
+            
+            this.browser.ObjectForScripting = this.CrmConnection;
+            //this.browser.Navigate(@"D:\Projects\GitHub\XrmRestBuilder\XrmHackathon.XrmRestbuilder\XrmHackathon.XrmRestbuilder\webresources\lat_\CRMRESTBuilder\Xrm.RESTBuilder.htm");
+            string appRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory);
+            this.Webserver = new WebServer(appRoot, newService);
+            Task.Run(delegate
+            {
+                this.Webserver.Start();
+            });
+            this.browser.Navigate(GetUrl("webresources/lat_/CRMRESTBuilder/Xrm.RESTBuilder.htm"));
+            return;
+        }
+        public Uri GetUrl(string relativeUrl)
+        {
+            return new Uri(this.Webserver.UriPrefix + relativeUrl);
+        }
+
+        public string Test(string message)
+        {
+            return "hello " + message;
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            this.browser.Navigate(@"D:\Projects\GitHub\XrmRestBuilder\XrmHackathon.XrmRestbuilder\XrmHackathon.XrmRestbuilder\webresources\lat_\CRMRESTBuilder\Xrm.RESTBuilder.htm");
+
         }
     }
 }
