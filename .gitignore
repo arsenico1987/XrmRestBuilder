@@ -260,3 +260,5 @@ paket-files/
 __pycache__/
 *.pyc
 /XrmHackathon.XrmRestbuilder/XrmHackathon.XrmRestbuilder/webresources/lat_ - Copy/CRMRESTBuilder
+/pat-key.txt
+/XrmHackathon.XrmRestbuilder.0.0.0.2 - Copy.zip

@@ -2,6 +2,8 @@
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Metadata.Query;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -56,7 +58,7 @@ namespace XrmHackathon.XrmRestbuilder
             this._listener.Prefixes.Add(uriPrefix);
             this._baseFolder = baseFolder;
             this.UriPrefix = uriPrefix;
-         prefixes   = new XmlNamespaceManager(nt);
+            prefixes = new XmlNamespaceManager(nt);
             //string format = "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:d=\"http://schemas.microsoft.com/xrm/2011/Contracts/Services\"  xmlns:a=\"http://schemas.microsoft.com/xrm/2011/Contracts\" xmlns:i=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:b=\"http://schemas.datacontract.org/2004/07/System.Collections.Generic\"><s:Body>{0}</s:Body></s:Envelope>";
             prefixes.AddNamespace("s", "http://schemas.xmlsoap.org/soap/envelope/");
             prefixes.AddNamespace("a", "http://schemas.microsoft.com/xrm/2011/Contracts");
@@ -162,7 +164,7 @@ namespace XrmHackathon.XrmRestbuilder
 
                 byte[] array = new byte[0];
                 string rawUrl = httpListenerContext.Request.RawUrl;
-                string text = this._baseFolder.Substring(0, _baseFolder.Length - 1) + rawUrl.Replace("/", "\\");
+                string text = this._baseFolder + "\\XrmRestbuilder" + rawUrl.Replace("webresources/", "").Replace("/", "\\");
                 if (rawUrl.ToLower().EndsWith("clientglobalcontext.js.aspx"))
                 {
                     array = this.GetClientGlobalContext();
@@ -188,7 +190,15 @@ namespace XrmHackathon.XrmRestbuilder
                                 documentContents = readStream.ReadToEnd();
                             }
                         }
-                        array = ProcessSoap(documentContents);
+                        if (rawUrl.StartsWith("/api/data/"))
+                        {
+                            array=ProcessApiCall(str, documentContents);
+                        }
+                        else
+                        {
+                            array = ProcessSoap(documentContents);
+
+                        }
 
                         //        if (!flag4)
                         //        {
@@ -289,6 +299,50 @@ namespace XrmHackathon.XrmRestbuilder
             }
         }
 
+        private byte[] ProcessApiCall(string str, string documentContents)
+        {
+            OrganizationRequest request = new OrganizationRequest(str.Substring(0, str.IndexOf("(")));
+            if (string.IsNullOrEmpty(documentContents) == false)
+            {
+                if(request.RequestName.Equals(new RetrieveMetadataChangesRequest().RequestName))
+                {
+                    request = new RetrieveMetadataChangesRequest();
+                    dynamic d = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(documentContents);
+                    JsonConverter jsc = new XrmRestbuilder.JsonInt32Converter();
+                    //Microsoft.Xrm.Sdk.Metadata.AttributeTypeCode
+                    ((RetrieveMetadataChangesRequest)request).Query =
+                        Newtonsoft.Json.JsonConvert.DeserializeObject<EntityQueryExpression>(d.Query.ToString(), new JsonSerializerSettings
+                        {
+                            Converters = { jsc },
+                            TypeNameHandling = TypeNameHandling.Arrays
+                        });
+                }
+            }
+            
+            RetrieveMetadataChangesRequest rmchr = new RetrieveMetadataChangesRequest();
+            rmchr.Query = new EntityQueryExpression();
+            rmchr.Query.Properties = new MetadataPropertiesExpression("DisplayName");
+            rmchr.Query.Criteria.Conditions.Add(new MetadataConditionExpression("objecttypecode", MetadataConditionOperator.GreaterThan, 0));
+            rmchr.Query.LabelQuery = new LabelQueryExpression();
+            rmchr.Query.LabelQuery.FilterLanguages.Add(1033);
+
+            //rmchr.Query.RelationshipQuery=new RelationshipQueryExpression
+            //{
+            //     Criteria=new MetadataFilterExpression
+            //     { 
+
+            //     }, Properties
+            //}
+            //string json = Newtonsoft.Json.JsonConvert.SerializeObject(rmchr);
+            try
+            {
+                OrganizationResponse response = service.Execute(request);
+                return Encoding.UTF8.GetBytes(
+                    Newtonsoft.Json.JsonConvert.SerializeObject(response));
+            }
+            catch (Exception) { throw; }
+        }
+
         private byte[] ProcessSoap(string documentContents)
         {
             XmlDocument expr_06 = new XmlDocument();
@@ -348,5 +402,59 @@ namespace XrmHackathon.XrmRestbuilder
                 "1.9"
             }));
         }
+    }
+    public class JsonInt32Converter : JsonConverter
+    {
+        #region Overrides of JsonConverter
+
+        /// <summary>
+        /// Only want to deserialize
+        /// </summary>
+        public override bool CanWrite { get { return false; } }
+
+        /// <summary>
+        /// Placeholder for inheritance -- not called because <see cref="CanWrite"/> returns false
+        /// </summary>
+        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        {
+            // since CanWrite returns false, we don't need to implement this
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Reads the JSON representation of the object.
+        /// </summary>
+        /// <param name="reader">The <see cref="T:Newtonsoft.Json.JsonReader"/> to read from.</param><param name="objectType">Type of the object.</param><param name="existingValue">The existing value of object being read.</param><param name="serializer">The calling serializer.</param>
+        /// <returns>
+        /// The object value.
+        /// </returns>
+        public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+        {
+            if(reader.TokenType== JsonToken.StartArray)
+            return JToken.Load(reader).ToObject<object[]>();
+            return (reader.TokenType == JsonToken.Integer)
+                ? Convert.ToInt32(reader.Value)     // convert to Int32 instead of Int64
+                : serializer.Deserialize(reader);   // default to regular deserialization
+        }
+
+        /// <summary>
+        /// Determines whether this instance can convert the specified object type.
+        /// </summary>
+        /// <param name="objectType">Type of the object.</param>
+        /// <returns>
+        /// <c>true</c> if this instance can convert the specified object type; otherwise, <c>false</c>.
+        /// </returns>
+        public override bool CanConvert(Type objectType)
+        {
+            return objectType == typeof(Int32) ||
+                    objectType == typeof(Int64) ||
+                    objectType == typeof(int) ||
+                    // need this last one in case we "weren't given" the type
+                    // and this will be accounted for by `ReadJson` checking tokentype
+                    objectType == typeof(object)
+                ;
+        }
+
+        #endregion
     }
 }

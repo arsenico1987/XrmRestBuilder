@@ -160,8 +160,8 @@ $(function () {
 			Xrm.RESTBuilder.TabActivate(event, ui);
 			Xrm.RESTBuilder.Editor2.refresh();
 		}
-	});
-
+    });
+    debugger;
 	Xrm.RESTBuilder.SetDefaultEndpoint();
 	Xrm.RESTBuilder.Endpoint_Change();
 });
@@ -372,37 +372,30 @@ Xrm.RESTBuilder.SetTopMax = function () {
 
 //Get the CRM version
 Xrm.RESTBuilder.GetCrmVersion = function () {
-	var request = [];
-	request.push("<s:Envelope xmlns:s='http://schemas.xmlsoap.org/soap/envelope/'>");
-	request.push("<s:Body>");
-	request.push("<Execute xmlns='http://schemas.microsoft.com/xrm/2011/Contracts/Services' xmlns:i='http://www.w3.org/2001/XMLSchema-instance'>");
-	request.push("<request i:type='b:RetrieveVersionRequest' xmlns:a='http://schemas.microsoft.com/xrm/2011/Contracts' xmlns:b='http://schemas.microsoft.com/crm/2011/Contracts'>");
-	request.push("<a:Parameters xmlns:c='http://schemas.datacontract.org/2004/07/System.Collections.Generic' />");
-	request.push("<a:RequestId i:nil='true' />");
-	request.push("<a:RequestName>RetrieveVersion</a:RequestName>");
-	request.push("</request>");
-	request.push("</Execute>");
-	request.push("</s:Body>");
-	request.push("</s:Envelope>");
+    var req = new XMLHttpRequest();
+    req.open("GET", Xrm.Page.context.getClientUrl() + "/api/data/v8.2/RetrieveVersion()", false);
+    req.setRequestHeader("OData-MaxVersion", "4.0");
+    req.setRequestHeader("OData-Version", "4.0");
+    req.setRequestHeader("Accept", "application/json");
+    req.setRequestHeader("Content-Type", "application/json; charset=utf-8");
 
-	var req = new XMLHttpRequest();
-	req.open("POST", Xrm.Page.context.getClientUrl() + "/XRMServices/2011/Organization.svc/web", false);
-	req.setRequestHeader("Accept", "application/xml, text/xml, */*");
-	req.setRequestHeader("Content-Type", "text/xml; charset=utf-8");
-	req.setRequestHeader("SOAPAction", "http://schemas.microsoft.com/xrm/2011/Contracts/Services/IOrganizationService/Execute");
 	req.onreadystatechange = function () {
 		if (req.readyState === 4) {
 			req.onreadystatechange = null;
-			if (req.status === 200) {
-				var version = $(req.responseXML).find("c\\:value, value").text();
-				$("#CrmVersion").text(version);
-				Xrm.RESTBuilder.CrmVersion = $.map(version.split("."), function (value) {
-					return parseInt(value, 10);
-				});
+            if (req.status === 200) {
+                try {
+                    var results = JSON.parse(this.response);
+                    var version = results.Results[0].Value;
+                    $("#CrmVersion").text(version);
+                    Xrm.RESTBuilder.CrmVersion = $.map(version.split("."), function (value) {
+                        return parseInt(value, 10);
+                    });
+                }
+                catch (e) { alert("Could not json parse GetCrmVersion " + e.message); }
 			}
 		}
 	};
-	req.send(request.join(""));
+	req.send();
 }
 
 //Get the Metadata for all entities
@@ -428,45 +421,104 @@ Xrm.RESTBuilder.GetAllEntityMetadata = function () {
         null,
         labelQuery);
 
-	var request = new Sdk.RetrieveMetadataChangesRequest(query, null, null);
-	Sdk.Async.execute(request,
-        Xrm.RESTBuilder.GetAllEntityMetadata_Response,
-        function (error) {
-        	Xrm.RESTBuilder.DisplayAlert(error.message);
-        });
+	//var request = new Sdk.RetrieveMetadataChangesRequest(query, null, null);
+	//Sdk.Async.execute(request,
+ //       Xrm.RESTBuilder.GetAllEntityMetadata_Response,
+ //       function (error) {
+ //       	Xrm.RESTBuilder.DisplayAlert(error.message);
+    //       });
+    var parameters = {};
+    //var query = {};
+
+    //query["@odata.type"] = "Microsoft.Dynamics.CRM.EntityQueryExpression";
+    parameters = {
+        "Query": {
+            "LabelQuery": { "FilterLanguages": [1033], "MissingLabelBehavior": null },
+            "AttributeQuery": null,
+            "RelationshipQuery": null,
+            "KeyQuery": null,
+            "Criteria": {
+                "Conditions": [
+                    {
+                        "PropertyName": "objecttypecode",
+                        "ConditionOperator": 4,
+                        "Value": 0
+                    }],
+                "FilterOperator": 0,
+                "Filters": []
+            }, "Properties": {
+                "AllProperties": false,
+                "PropertyNames": [emp.DisplayName, emp.SchemaName, emp.IsIntersect, emp.EntitySetName, emp.ObjectTypeCode, emp.MetadataId]
+            }
+        }
+    };
+
+
+
+    var req = new XMLHttpRequest();
+    req.open("POST", Xrm.Page.context.getClientUrl() + "/api/data/v8.2/RetrieveMetadataChanges()", true);
+    req.setRequestHeader("OData-MaxVersion", "4.0");
+    req.setRequestHeader("OData-Version", "4.0");
+    req.setRequestHeader("Accept", "application/json");
+    req.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+    req.onreadystatechange = function () {
+        if (this.readyState === 4) {
+            req.onreadystatechange = null;
+            if (this.status === 200) {
+                try {
+                    var results = JSON.parse(this.response);
+                    Xrm.RESTBuilder.GetAllEntityMetadata_Response(results);
+                }
+                catch (e) { alert("Could not json parse GetAllEntityMetadata " + e); }
+            } else {
+                Xrm.Utility.alertDialog(this.statusText);
+            }
+        }
+    };
+    req.send(JSON.stringify(parameters));
 };
 
 //Get the Metadata for all entities - Callback
 Xrm.RESTBuilder.GetAllEntityMetadata_Response = function (response) {
-	var options = [];
-	for (var i = 0; i < response.getEntityMetadata().length; i++) {
-
-		if (Xrm.RESTBuilder.IsUnsearchable(response.getEntityMetadata()[i].SchemaName)) {
-			continue;
-		}
-
-		var entitySetName = "";
-		if (Xrm.RESTBuilder.CrmVersion[0] > 7) {
-			entitySetName = response.getEntityMetadata()[i].EntitySetName;
-		}
-		options.push("<option EntitySetName='" + entitySetName + "' LogicalName='" + response.getEntityMetadata()[i].LogicalName + "' ObjectTypeCode='" + response.getEntityMetadata()[i].ObjectTypeCode +
-			"' value='" + response.getEntityMetadata()[i].SchemaName + "' title='" + Xrm.RESTBuilder.GetLabel(response.getEntityMetadata()[i].DisplayName) + "' IsIntersect='" + response.getEntityMetadata()[i].IsIntersect +
-			"' metadataid='" + response.getEntityMetadata()[i].MetadataId + "'>" + response.getEntityMetadata()[i].SchemaName + "</option>");
-	}
-	$("#EntityList").html(options.join(""));
-	Xrm.RESTBuilder.SortSelect($("#EntityList")[0]);
-	$("#EntityList")[0].selectedIndex = 0;
-	Xrm.RESTBuilder.EntityLogical = $("#EntityList option:selected").attr("LogicalName");
-	if (Xrm.RESTBuilder.CrmVersion[0] > 7) {
-		Xrm.RESTBuilder.EntitySetName = $("#EntityList option:selected").attr("EntitySetName");
-	} else {
-		Xrm.RESTBuilder.EntitySetName = "";
-	}
-	Xrm.RESTBuilder.EntitySchema = $("#EntityList").val();
-	$("#EntityList option").clone().appendTo("#AssociateEntity1");
-	$("#AssociateEntity1 option[isintersect='true']").remove();
-	Xrm.RESTBuilder.GetAttributeMetadata(Xrm.RESTBuilder.EntityLogical, Xrm.RESTBuilder.GetAttributeMetadata_Response, null);
+    for (var i = 0; i < response.Results.length; i++) {
+        if (response.Results[i].Key === "EntityMetadata") {
+            Xrm.RESTBuilder.HandleMetadata(response.Results[i].Value);
+        }
+    }
 };
+
+Xrm.RESTBuilder.HandleMetadata = function (entityMetadata) {
+    var options = [];
+    for (var i = 0; i < entityMetadata.length; i++) {
+
+        if (Xrm.RESTBuilder.IsUnsearchable(entityMetadata[i].SchemaName)) {
+            continue;
+        }
+
+        var entitySetName = "";
+        if (Xrm.RESTBuilder.CrmVersion[0] > 7) {
+            entitySetName = entityMetadata[i].EntitySetName;
+        }
+        options.push("<option EntitySetName='" + entitySetName + "' LogicalName='" + entityMetadata[i].LogicalName + "' ObjectTypeCode='"
+            + entityMetadata[i].ObjectTypeCode
+            + "' value='" + entityMetadata[i].SchemaName + "' title='" + Xrm.RESTBuilder.GetLabel(entityMetadata[i].DisplayName)
+            + "' IsIntersect='" + entityMetadata[i].IsIntersect +
+            "' metadataid='" + entityMetadata[i].MetadataId + "'>" + entityMetadata[i].SchemaName + "</option>");
+    }
+    $("#EntityList").html(options.join(""));
+    Xrm.RESTBuilder.SortSelect($("#EntityList")[0]);
+    $("#EntityList")[0].selectedIndex = 0;
+    Xrm.RESTBuilder.EntityLogical = $("#EntityList option:selected").attr("LogicalName");
+    if (Xrm.RESTBuilder.CrmVersion[0] > 7) {
+        Xrm.RESTBuilder.EntitySetName = $("#EntityList option:selected").attr("EntitySetName");
+    } else {
+        Xrm.RESTBuilder.EntitySetName = "";
+    }
+    Xrm.RESTBuilder.EntitySchema = $("#EntityList").val();
+    $("#EntityList option").clone().appendTo("#AssociateEntity1");
+    $("#AssociateEntity1 option[isintersect='true']").remove();
+    Xrm.RESTBuilder.GetAttributeMetadata(Xrm.RESTBuilder.EntityLogical, Xrm.RESTBuilder.GetAttributeMetadata_Response, null);
+}
 
 //Get the Attribute Metadata for the Entity
 Xrm.RESTBuilder.GetAttributeMetadata = function (name, callBack, ctrl) {
@@ -476,53 +528,165 @@ Xrm.RESTBuilder.GetAttributeMetadata = function (name, callBack, ctrl) {
 	var emp = mdq.EntityMetadataProperties;
 	var amp = mdq.AttributeMetadataProperties;
 
-	var entityFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
-	entityFilter.addCondition(semp.LogicalName, mdq.MetadataConditionOperator.Equals, name);
-	var entityProperties = new mdq.MetadataPropertiesExpression(false, [emp.Attributes, emp.SchemaName, emp.ManyToManyRelationships, emp.ManyToOneRelationships, emp.OneToManyRelationships, emp.IsActivity]);
-	var attributesFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
-	attributesFilter.addCondition(samp.AttributeType, mdq.MetadataConditionOperator.NotEquals, "Virtual");
-	attributesFilter.addCondition(samp.SchemaName, mdq.MetadataConditionOperator.NotEquals, "Address1_Composite");
-	attributesFilter.addCondition(samp.SchemaName, mdq.MetadataConditionOperator.NotEquals, "Address2_Composite");
-	attributesFilter.addCondition(samp.AttributeType, mdq.MetadataConditionOperator.NotEquals, "PartyList");
-	attributesFilter.addCondition(samp.IsValidForRead, mdq.MetadataConditionOperator.Equals, true);
-	attributesFilter.addCondition(samp.AttributeOf, mdq.MetadataConditionOperator.Equals, null);
-	var attributeProperties;
-	if (Xrm.RESTBuilder.CrmVersion[0] > 7) {
-		attributeProperties = new mdq.MetadataPropertiesExpression(false, [
-            amp.DisplayName, amp.AttributeType, amp.OptionSet, amp.SchemaName, amp.IsValidForUpdate, amp.IsValidForCreate, amp.MaxLength,
-            amp.RequiredLevel, amp.MaxValue, amp.MinValue, amp.Precision, amp.Targets, amp.Format, amp.DateTimeBehavior]);
-	} else {
-		attributeProperties = new mdq.MetadataPropertiesExpression(false, [
-            amp.DisplayName, amp.AttributeType, amp.OptionSet, amp.SchemaName, amp.IsValidForUpdate, amp.IsValidForCreate, amp.MaxLength,
-            amp.RequiredLevel, amp.MaxValue, amp.MinValue, amp.Precision, amp.Targets, amp.Format]);
-	}
-	var relationshipFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
-	relationshipFilter.addCondition(samp.IsValidForAdvancedFind, mdq.MetadataConditionOperator.Equals, true);
-	var relationshipProperties = new mdq.MetadataPropertiesExpression(true, [emp.ManyToManyRelationships, emp.ManyToOneRelationships, emp.OneToManyRelationships]);
-	var labelQuery = new mdq.LabelQueryExpression([Xrm.Page.context.getUserLcid()]);
-	var query = new mdq.EntityQueryExpression(
-        entityFilter,
-        entityProperties,
-        new mdq.AttributeQueryExpression(attributesFilter, attributeProperties),
-        new mdq.RelationshipQueryExpression(relationshipFilter, relationshipProperties),
-        labelQuery);
+	//var entityFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
+	//entityFilter.addCondition(semp.LogicalName, mdq.MetadataConditionOperator.Equals, name);
+	//var entityProperties = new mdq.MetadataPropertiesExpression(false, [emp.Attributes, emp.SchemaName, emp.ManyToManyRelationships, emp.ManyToOneRelationships, emp.OneToManyRelationships, emp.IsActivity]);
+	//var attributesFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
+	//attributesFilter.addCondition(samp.AttributeType, mdq.MetadataConditionOperator.NotEquals, "Virtual");
+	//attributesFilter.addCondition(samp.SchemaName, mdq.MetadataConditionOperator.NotEquals, "Address1_Composite");
+	//attributesFilter.addCondition(samp.SchemaName, mdq.MetadataConditionOperator.NotEquals, "Address2_Composite");
+	//attributesFilter.addCondition(samp.AttributeType, mdq.MetadataConditionOperator.NotEquals, "PartyList");
+	//attributesFilter.addCondition(samp.IsValidForRead, mdq.MetadataConditionOperator.Equals, true);
+	//attributesFilter.addCondition(samp.AttributeOf, mdq.MetadataConditionOperator.Equals, null);
+	//var attributeProperties;
+	//if (Xrm.RESTBuilder.CrmVersion[0] > 7) {
+	//	attributeProperties = new mdq.MetadataPropertiesExpression(false, [
+ //           amp.DisplayName, amp.AttributeType, amp.OptionSet, amp.SchemaName, amp.IsValidForUpdate, amp.IsValidForCreate, amp.MaxLength,
+ //           amp.RequiredLevel, amp.MaxValue, amp.MinValue, amp.Precision, amp.Targets, amp.Format, amp.DateTimeBehavior]);
+	//} else {
+	//	attributeProperties = new mdq.MetadataPropertiesExpression(false, [
+ //           amp.DisplayName, amp.AttributeType, amp.OptionSet, amp.SchemaName, amp.IsValidForUpdate, amp.IsValidForCreate, amp.MaxLength,
+ //           amp.RequiredLevel, amp.MaxValue, amp.MinValue, amp.Precision, amp.Targets, amp.Format]);
+	//}
+	//var relationshipFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
+	//relationshipFilter.addCondition(samp.IsValidForAdvancedFind, mdq.MetadataConditionOperator.Equals, true);
+	//var relationshipProperties = new mdq.MetadataPropertiesExpression(true, [emp.ManyToManyRelationships, emp.ManyToOneRelationships, emp.OneToManyRelationships]);
+	//var labelQuery = new mdq.LabelQueryExpression([Xrm.Page.context.getUserLcid()]);
+	//var query = new mdq.EntityQueryExpression(
+ //       entityFilter,
+ //       entityProperties,
+ //       new mdq.AttributeQueryExpression(attributesFilter, attributeProperties),
+ //       new mdq.RelationshipQueryExpression(relationshipFilter, relationshipProperties),
+ //       labelQuery);
 
-	var request = new Sdk.RetrieveMetadataChangesRequest(query, null, null);
-	Sdk.Async.execute(request,
-        (ctrl === null) ? callBack : callBack(ctrl),
-        function (error) {
-        	Xrm.RESTBuilder.DisplayAlert(error.message);
-        });
+	//var request = new Sdk.RetrieveMetadataChangesRequest(query, null, null);
+
+    var parameters = {};
+    //var query = {};
+
+    //query["@odata.type"] = "Microsoft.Dynamics.CRM.EntityQueryExpression";
+    
+    parameters = {
+        "Query": {
+            "LabelQuery": { "FilterLanguages": [1033], "MissingLabelBehavior": null },
+            "AttributeQuery": {
+                "Criteria": {
+                    "Conditions": [
+                        //{
+                        //    "PropertyName": samp.AttributeType,
+                        //    "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                        //    "Value": "Virtual"
+                        //},
+                        {
+                            "PropertyName": samp.SchemaName,
+                            "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                            "Value": "Address1_Composite"
+                        }, {
+                            "PropertyName": samp.SchemaName,
+                            "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                            "Value": "Address2_Composite"
+                        },
+                        //{
+                        //    "PropertyName": samp.AttributeType,
+                        //    "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                        //    "Value": "PartyList"
+                        //},
+                        {
+                            "PropertyName": samp.IsValidForRead,
+                            "ConditionOperator": mdq.MetadataConditionOperator.Equals,
+                            "Value": true
+                        },
+                        //{
+                        //    "PropertyName": samp.AttributeOf,
+                        //    "ConditionOperator": mdq.MetadataConditionOperator.Equals,
+                        //    "Value": null
+                        //}
+                    ],
+                    "FilterOperator": 0,
+                    "Filters": []
+                }, "Properties": {
+                    "AllProperties": false,
+                    "PropertyNames": [amp.DisplayName, amp.AttributeType, amp.OptionSet, amp.SchemaName, amp.IsValidForUpdate,
+                    amp.IsValidForCreate, amp.MaxLength, amp.RequiredLevel, amp.MaxValue, amp.MinValue, amp.Precision,
+                    amp.Targets, amp.Format, amp.DateTimeBehavior]
+                }
+            },
+            "RelationshipQuery": {
+                "Criteria": {
+                    "Conditions": [
+                        {
+                            "PropertyName": samp.IsValidForAdvancedFind,
+                            "ConditionOperator": mdq.MetadataConditionOperator.Equals,
+                            "Value": true
+                        }
+                    ],
+                    "FilterOperator": 0,
+                    "Filters": []
+                }, "Properties": {
+                    "AllProperties": true
+                    //"PropertyNames": [emp.ManyToManyRelationships, emp.ManyToOneRelationships, emp.OneToManyRelationships]
+                }
+            },
+            "KeyQuery": null,
+            "Criteria": {
+                "Conditions": [
+                    {
+                        "PropertyName": semp.LogicalName,
+                        "ConditionOperator": mdq.MetadataConditionOperator.Equals,
+                        "Value": name
+                    }],
+                "FilterOperator": 0,
+                "Filters": []
+            }, "Properties": {
+                "AllProperties": true
+                //"PropertyNames": [emp.Attributes, emp.SchemaName, emp.ManyToManyRelationships, emp.ManyToOneRelationships, emp.OneToManyRelationships, emp.IsActivity]
+            }
+        }
+    };
+
+
+    var req = new XMLHttpRequest();
+    req.open("POST", Xrm.Page.context.getClientUrl() + "/api/data/v8.2/RetrieveMetadataChanges()", true);
+    req.setRequestHeader("OData-MaxVersion", "4.0");
+    req.setRequestHeader("OData-Version", "4.0");
+    req.setRequestHeader("Accept", "application/json");
+    req.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+    req.onreadystatechange = function () {
+        if (this.readyState === 4) {
+            req.onreadystatechange = null;
+            if (this.status === 200) {
+                try {
+                    var results = JSON.parse(this.response);
+                    for (var i = 0; i < results.Results.length; i++) {
+                        if (results.Results[i].Key === "EntityMetadata") {
+                            callBack(results.Results[i].Value);
+                        }
+                    }
+                }
+                catch (e) { alert("Could not json parse GetAttributeMetadata " + e); }
+            }
+            else {
+                Xrm.Utility.alertDialog(this.statusText);
+            }
+        }
+    };
+    req.send(JSON.stringify(parameters));
+
+	//Sdk.Async.execute(request,
+ //       (ctrl === null) ? callBack : callBack(ctrl),
+ //       function (error) {
+ //       	Xrm.RESTBuilder.DisplayAlert(error.message);
+ //       });
 };
 
 //Get the Attribute Metadata for the Entity - Callback
 Xrm.RESTBuilder.GetAttributeMetadata_Response = function (entityMetadata) {
-	if (entityMetadata.getEntityMetadata().length > 0) {
-		Xrm.RESTBuilder.EntityIsActivity = entityMetadata.getEntityMetadata()[0].IsActivity;
-		Xrm.RESTBuilder.CurrentEntityAttributes = entityMetadata.getEntityMetadata()[0].Attributes;
-		Xrm.RESTBuilder.CurrentEntityOneToManyRelationships = entityMetadata.getEntityMetadata()[0].OneToManyRelationships;
-		Xrm.RESTBuilder.CurrentEntityManyToOneRelationships = entityMetadata.getEntityMetadata()[0].ManyToOneRelationships;
-		Xrm.RESTBuilder.CurrentEntityManyToManyRelationships = entityMetadata.getEntityMetadata()[0].ManyToManyRelationships;
+	if (entityMetadata.length > 0) {
+		Xrm.RESTBuilder.EntityIsActivity = entityMetadata[0].IsActivity;
+		Xrm.RESTBuilder.CurrentEntityAttributes = entityMetadata[0].Attributes;
+		Xrm.RESTBuilder.CurrentEntityOneToManyRelationships = entityMetadata[0].OneToManyRelationships;
+		Xrm.RESTBuilder.CurrentEntityManyToOneRelationships = entityMetadata[0].ManyToOneRelationships;
+		Xrm.RESTBuilder.CurrentEntityManyToManyRelationships = entityMetadata[0].ManyToManyRelationships;
 		Xrm.RESTBuilder.AddAttribute_Click();
 		if (Xrm.RESTBuilder.Type === "Create" || Xrm.RESTBuilder.Type === "Update") {
 			var ctrl = $("#" + Xrm.RESTBuilder.FindTypeTable()).find("tbody tr:first .Attribute:first");
@@ -556,14 +720,17 @@ Xrm.RESTBuilder.GetAlternateKeys = function (metadataId) {
 	req.onreadystatechange = function () {
 		if (this.readyState === 4) {
 			req.onreadystatechange = null;
-			if (this.status === 200) {
-				var result = JSON.parse(this.response);
-				var keyAttributes = result.value;
-				for (var i = 0; i < keyAttributes.length; i++) {
-					Xrm.RESTBuilder.CurrentEntityAlternateKeys.push(keyAttributes[i]);
-				}
+            if (this.status === 200) {
+                try {
+                    var result = JSON.parse(this.response);
+                    var keyAttributes = result.value;
+                    for (var i = 0; i < keyAttributes.length; i++) {
+                        Xrm.RESTBuilder.CurrentEntityAlternateKeys.push(keyAttributes[i]);
+                    }
 
-				Xrm.RESTBuilder.SetAlternateKeyState();
+                    Xrm.RESTBuilder.SetAlternateKeyState();
+                }
+                catch (e) { alert("Could not json parse GetAlternateKeys " + e); }
 			}
 		}
 	};
@@ -693,39 +860,137 @@ Xrm.RESTBuilder.GetExpandedAttributeMetadata = function (names) {
 	var emp = mdq.EntityMetadataProperties;
 	var amp = mdq.AttributeMetadataProperties;
 
-	var entityFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
-	entityFilter.addCondition(semp.LogicalName, mdq.MetadataConditionOperator.In, names);
-	var entityProperties = new mdq.MetadataPropertiesExpression(false, [emp.Attributes, emp.SchemaName]);
-	var attributesFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
-	attributesFilter.addCondition(samp.AttributeType, mdq.MetadataConditionOperator.NotEquals, "Virtual");
-	attributesFilter.addCondition(samp.SchemaName, mdq.MetadataConditionOperator.NotEquals, "Address1_Composite");
-	attributesFilter.addCondition(samp.SchemaName, mdq.MetadataConditionOperator.NotEquals, "Address2_Composite");
-	attributesFilter.addCondition(samp.AttributeType, mdq.MetadataConditionOperator.NotEquals, "PartyList");
-	attributesFilter.addCondition(samp.IsValidForRead, mdq.MetadataConditionOperator.Equals, true);
-	attributesFilter.addCondition(samp.AttributeOf, mdq.MetadataConditionOperator.Equals, null);
-	var attributeProperties = new mdq.MetadataPropertiesExpression(false, [
-        amp.DisplayName, amp.AttributeType, amp.OptionSet, amp.SchemaName, amp.MaxLength,
-        amp.RequiredLevel, amp.MaxValue, amp.MinValue, amp.Precision
-	]);
-	var labelQuery = new mdq.LabelQueryExpression([Xrm.Page.context.getUserLcid()]);
-	var query = new mdq.EntityQueryExpression(
-        entityFilter,
-        entityProperties,
-        new mdq.AttributeQueryExpression(attributesFilter, attributeProperties),
-        null,
-        labelQuery);
+	//var entityFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
+	//entityFilter.addCondition(semp.LogicalName, mdq.MetadataConditionOperator.In, names);
+	//var entityProperties = new mdq.MetadataPropertiesExpression(false, [emp.Attributes, emp.SchemaName]);
+	//var attributesFilter = new mdq.MetadataFilterExpression(mdq.LogicalOperator.And);
+	//attributesFilter.addCondition(samp.AttributeType, mdq.MetadataConditionOperator.NotEquals, "Virtual");
+	//attributesFilter.addCondition(samp.SchemaName, mdq.MetadataConditionOperator.NotEquals, "Address1_Composite");
+	//attributesFilter.addCondition(samp.SchemaName, mdq.MetadataConditionOperator.NotEquals, "Address2_Composite");
+	//attributesFilter.addCondition(samp.AttributeType, mdq.MetadataConditionOperator.NotEquals, "PartyList");
+	//attributesFilter.addCondition(samp.IsValidForRead, mdq.MetadataConditionOperator.Equals, true);
+	//attributesFilter.addCondition(samp.AttributeOf, mdq.MetadataConditionOperator.Equals, null);
+	//var attributeProperties = new mdq.MetadataPropertiesExpression(false, [
+ //       amp.DisplayName, amp.AttributeType, amp.OptionSet, amp.SchemaName, amp.MaxLength,
+ //       amp.RequiredLevel, amp.MaxValue, amp.MinValue, amp.Precision
+	//]);
+	//var labelQuery = new mdq.LabelQueryExpression([Xrm.Page.context.getUserLcid()]);
+	//var query = new mdq.EntityQueryExpression(
+ //       entityFilter,
+ //       entityProperties,
+ //       new mdq.AttributeQueryExpression(attributesFilter, attributeProperties),
+ //       null,
+ //       labelQuery);
 
-	var request = new Sdk.RetrieveMetadataChangesRequest(query, null, null);
-	Sdk.Async.execute(request,
-        Xrm.RESTBuilder.GetExpandedAttributeMetadata_Response,
-        function (error) {
-        	Xrm.RESTBuilder.DisplayAlert(error.message);
-        });
+	//var request = new Sdk.RetrieveMetadataChangesRequest(query, null, null);
+	//Sdk.Async.execute(request,
+ //       Xrm.RESTBuilder.GetExpandedAttributeMetadata_Response,
+ //       function (error) {
+ //       	Xrm.RESTBuilder.DisplayAlert(error.message);
+ //       });
+
+    /* From Here */
+    var parameters = {};
+    //var query = {};
+
+    //query["@odata.type"] = "Microsoft.Dynamics.CRM.EntityQueryExpression";
+
+    parameters = {
+        "Query": {
+            "LabelQuery": { "FilterLanguages": [1033], "MissingLabelBehavior": null },
+            "AttributeQuery": {
+                "Criteria": {
+                    "Conditions": [
+                        //{
+                        //    "PropertyName": samp.AttributeType,
+                        //    "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                        //    "Value": "Virtual"
+                        //},
+                        {
+                            "PropertyName": samp.SchemaName,
+                            "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                            "Value": "Address1_Composite"
+                        }, {
+                            "PropertyName": samp.SchemaName,
+                            "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                            "Value": "Address2_Composite"
+                        },
+                        //{
+                        //    "PropertyName": samp.AttributeType,
+                        //    "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                        //    "Value": "PartyList"
+                        //},
+                        {
+                            "PropertyName": samp.IsValidForRead,
+                            "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                            "Value": true
+                        }, {
+                            "PropertyName": samp.AttributeOf,
+                            "ConditionOperator": mdq.MetadataConditionOperator.NotEquals,
+                            "Value": null
+                        }
+                    ],
+                    "FilterOperator": 0,
+                    "Filters": []
+                }, "Properties": {
+                    "AllProperties": false,
+                    "PropertyNames": [amp.DisplayName, amp.AttributeType, amp.OptionSet, amp.SchemaName, amp.IsValidForUpdate,
+                    amp.IsValidForCreate, amp.MaxLength, amp.RequiredLevel, amp.MaxValue, amp.MinValue, amp.Precision,
+                    amp.Targets, amp.Format, amp.DateTimeBehavior]
+                }
+            },
+            "RelationshipQuery": null,
+            "KeyQuery": null,
+            "Criteria": {
+                "Conditions": [
+                    {
+                        "PropertyName": semp.LogicalName,
+                        "ConditionOperator": mdq.MetadataConditionOperator.In,
+                        "Value": names
+                    }],
+                "FilterOperator": 0,
+                "Filters": []
+            }, "Properties": {
+                "AllProperties": false,
+                "PropertyNames": [emp.Attributes, emp.SchemaName]
+            }
+        }
+    };
+
+
+
+    var req = new XMLHttpRequest();
+    req.open("POST", Xrm.Page.context.getClientUrl() + "/api/data/v8.2/RetrieveMetadataChanges()", true);
+    req.setRequestHeader("OData-MaxVersion", "4.0");
+    req.setRequestHeader("OData-Version", "4.0");
+    req.setRequestHeader("Accept", "application/json");
+    req.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+    req.onreadystatechange = function () {
+        if (this.readyState === 4) {
+            req.onreadystatechange = null;
+            if (this.status === 200) {
+                try {
+                    var results = JSON.parse(this.response);
+                    for (var i = 0; i < results.Results.length; i++) {
+                        if (results.Results[i].Key === "EntityMetadata") {
+                            Xrm.RESTBuilder.GetExpandedAttributeMetadata_Response(results.Results[i].Value);
+                        }
+                    }
+                }
+                catch (e) { alert("Could not json parse GetExpandedAttributeMetadata " + e); }
+            }
+            else {
+                Xrm.Utility.alertDialog(this.statusText);
+            }
+        }
+    };
+    req.send(JSON.stringify(parameters));
 };
 
 Xrm.RESTBuilder.GetExpandedAttributeMetadata_Response = function (entityMetadata) {
-	if (entityMetadata.getEntityMetadata().length > 0) {
-		Xrm.RESTBuilder.CurrentEntityExpandedAttributes = entityMetadata.getEntityMetadata();
+    if (entityMetadata.length > 0) {
+        debugger;
+		Xrm.RESTBuilder.CurrentEntityExpandedAttributes = entityMetadata;
 		$("#SelectList2 li").remove();
 		$("#SelectList3 li").remove();
 		$("#SelectList4 li").remove();
@@ -3759,17 +4024,21 @@ Xrm.RESTBuilder.BuildObjectString = function () {
 			case "Uniqueidentifier":
 				js.push(Xrm.RESTBuilder.REST_Uniqueidentifier(field, val1));
 				break;
+            case 14:
+            case 7:
 			case "Memo":
 			case "String":
 				js.push(Xrm.RESTBuilder.REST_String(field, val1));
-				break;
+                break;
+            case 0:
 			case "Boolean":
 				js.push(Xrm.RESTBuilder.REST_Boolean(field, sel1));
 				break;
 			case "Status":
 			case "Picklist":
 				js.push(Xrm.RESTBuilder.REST_Picklist(field, sel1));
-				break;
+                break;
+            case 1:
 			case "Customer":
 			case "Lookup":
 				js.push(Xrm.RESTBuilder.REST_Lookup(field, val1, sel1));
@@ -3983,7 +4252,8 @@ Xrm.RESTBuilder.BuildSelectString_WebApi = function () {
 };
 
 Xrm.RESTBuilder.CreateSelectItems = function () {
-	var items = [];
+    var items = [];
+    debugger;
 	for (var i = 0; i < Xrm.RESTBuilder.CurrentEntityAttributes.length; i++) {
 		items.push("<li id='" + Xrm.RESTBuilder.CurrentEntityAttributes[i].SchemaName + "'><input type='checkbox' value='" + Xrm.RESTBuilder.CurrentEntityAttributes[i].SchemaName +
             "' />" + Xrm.RESTBuilder.CurrentEntityAttributes[i].SchemaName + " (" + Xrm.RESTBuilder.GetLabel(Xrm.RESTBuilder.CurrentEntityAttributes[i].DisplayName) + ")</li>");
@@ -4177,7 +4447,8 @@ Xrm.RESTBuilder.BuildFilterString = function () {
 			}
 		}
 
-		//Is the value the input or select field
+        //Is the value the input or select field
+        debugger;
 		var value = (val !== null && val !== undefined) ? val : sel;
 		if (field === null || field === undefined) {
 			continue;
@@ -5930,6 +6201,7 @@ Xrm.RESTBuilder.GetAttributeClass = function (level) {
 };
 
 Xrm.RESTBuilder.Attribute_Change = function () {
+    debugger;
 	$(this).removeClass("recommended-border").removeClass("required-border");
 	var cls = $(this).find("option:selected").attr("class");
 	if (cls !== "") {

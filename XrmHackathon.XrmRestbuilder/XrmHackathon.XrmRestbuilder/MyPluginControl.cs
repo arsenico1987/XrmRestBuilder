@@ -14,6 +14,7 @@ using McTools.Xrm.Connection;
 using System.Security.Permissions;
 using System.Runtime.InteropServices;
 using System.IO;
+using System.Reflection;
 
 namespace XrmHackathon.XrmRestbuilder
 {
@@ -114,7 +115,11 @@ namespace XrmHackathon.XrmRestbuilder
             
             this.browser.ObjectForScripting = this.CrmConnection;
             //this.browser.Navigate(@"D:\Projects\GitHub\XrmRestBuilder\XrmHackathon.XrmRestbuilder\XrmHackathon.XrmRestbuilder\webresources\lat_\CRMRESTBuilder\Xrm.RESTBuilder.htm");
-            string appRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory);
+            string appRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
+            if (Assembly.GetEntryAssembly().GetName().Version >= new Version("1.2016.11"))
+            {
+                appRoot = (string)Type.GetType("XrmToolBox.Extensibility.Paths,XrmToolBox.Extensibility").GetProperty("PluginsPath").GetValue(null, null);
+            }
             this.Webserver = new WebServer(appRoot, newService);
             Task.Run(delegate
             {
